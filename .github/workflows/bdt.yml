@@ -34,8 +34,67 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [1.14.x]
+        node: [12.x]
+    services:
+      postgres:
+        image: postgres:9.6
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432/tcp
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306/tcp
+      cockroachdb:
+        image: cockroachdb/cockroach:v2.1.6
+        env:
+          COCKROACH_INSECURE: true
+        ports:
+          - 26257/tcp
     steps:
-      - run: exit 0
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-${{ matrix.node }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-
+      - uses: actions/cache@v2
+        with:
+          path: .bin
+          key: ${{ runner.os }}-bin-${{ hashFiles('Makefile') }}
+          restore-keys: ${{ runner.os }}-bin-
+      - run: go mod download
+      - run: make deps
+      - run: .bin/go-acc -o coverage.txt ./... -- -failfast -timeout=5m
+        env:
+          TEST_DATABASE_POSTGRESQL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable
+          TEST_DATABASE_MYSQL: mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true
+          TEST_DATABASE_COCKROACHDB: cockroach://root@localhost:${{ job.services.cockroachdb.ports[26257] }}/defaultdb?sslmode=disable
+
+      #      Running race conditions requires parallel tests, otherwise it's worthless (which is the case)
+      #      - run: go test -race -short $(go list ./... | grep -v cmd)
+      - run: test -z "${{ github.event.pull_request.number }}" && goveralls -service=circle-ci -coverprofile=coverage.txt -repotoken=$COVERALLS_REPO_TOKEN || echo "forks are not allowed to push to coveralls"
+      - run: make docker
 
   test-e2e-memory:
     runs-on: ubuntu-latest
