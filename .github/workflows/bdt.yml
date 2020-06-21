@@ -156,9 +156,56 @@ jobs:
       - run: ./test/e2e/circle-ci.bash postgres-jwt
 
   test-e2e-mysql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go: [1.14.x]
+        node: [12.x]
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306/tcp
     steps:
-      - run: exit 0
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: go mod download
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@v2
+        id: root-npm
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+          key: ${{ runner.os }}-${{ matrix.node }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-
+      - run: npm ci
+      - uses: actions/cache@v2
+        id: oauth2-client-npm
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+            test/e2e/oauth2-client/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-${{ hashFiles('test/e2e/oauth2-client/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-
+      - run: npm ci
+        working-directory: test/e2e/oauth2-client
+      - run: echo "::set-env name=TEST_DATABASE_MYSQL::mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true"
+      - run: ./test/e2e/circle-ci.bash mysql
+      - run: ./test/e2e/circle-ci.bash mysql-jwt
 
   test-e2e-cockroach:
     runs-on: ubuntu-latest
