@@ -1,0 +1,65 @@
+name: BDT
+
+on:
+  - push
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  nancy-test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  goreleaser-test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test-e2e-memory:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test-e2e-postgres:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test-e2e-mysql:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test-e2e-cockroach:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  test-e2e-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
+
+  sdk-generate:
+    needs:
+      - lint
+      - nancy-test
+      - test
+      - goreleaser-test
+      - test-e2e-memory
+      - test-e2e-postgres
+      - test-e2e-mysql
+      - test-e2e-cockroach
+      - test-e2e-plugin
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0
