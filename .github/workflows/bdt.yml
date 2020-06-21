@@ -54,7 +54,7 @@ jobs:
         ports:
           - 3306/tcp
       cockroachdb:
-        image: cockroachdb/cockroach:v2.1.6
+        image: sawadashota/cockroachdb:v2.1.6
         env:
           COCKROACH_INSECURE: true
         ports:
@@ -154,7 +154,19 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: postgres
         ports:
-          - 5432/tcp
+          - 5432:5432
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306:3306
+      cockroachdb:
+        image: cockroachdb/cockroach:v2.1.6
+        env:
+          COCKROACH_INSECURE: true
+        ports:
+          - 26257:26257
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -190,7 +202,10 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-
       - run: npm ci
         working-directory: test/e2e/oauth2-client
-      - run: echo "::set-env name=TEST_DATABASE_POSTGRESQL::postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable"
+      - run: |
+          echo "::set-env name=TEST_DATABASE_POSTGRESQL::postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable"
+          echo "::set-env name=TEST_DATABASE_MYSQL::mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true"
+          echo "::set-env name=TEST_DATABASE_COCKROACHDB::cockroach://root@localhost:${{ job.services.cockroachdb.ports[26257] }}/defaultdb?sslmode=disable"
       - run: ./test/e2e/circle-ci.bash postgres
       - run: ./test/e2e/circle-ci.bash postgres-jwt
 
@@ -201,12 +216,26 @@ jobs:
         go: [1.14.x]
         node: [12.x]
     services:
+      postgres:
+        image: postgres:9.6
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
       mysql:
         image: mysql:5.7
         env:
           MYSQL_ROOT_PASSWORD: test
         ports:
-          - 3306/tcp
+          - 3306:3306
+      cockroachdb:
+        image: cockroachdb/cockroach:v2.1.6
+        env:
+          COCKROACH_INSECURE: true
+        ports:
+          - 26257:26257
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -242,14 +271,81 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-
       - run: npm ci
         working-directory: test/e2e/oauth2-client
-      - run: echo "::set-env name=TEST_DATABASE_MYSQL::mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true"
+      - run: |
+          echo "::set-env name=TEST_DATABASE_POSTGRESQL::postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable"
+          echo "::set-env name=TEST_DATABASE_MYSQL::mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true"
+          echo "::set-env name=TEST_DATABASE_COCKROACHDB::cockroach://root@localhost:${{ job.services.cockroachdb.ports[26257] }}/defaultdb?sslmode=disable"
       - run: ./test/e2e/circle-ci.bash mysql
       - run: ./test/e2e/circle-ci.bash mysql-jwt
 
   test-e2e-cockroach:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go: [1.14.x]
+        node: [12.x]
+    services:
+      postgres:
+        image: postgres:9.6
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306:3306
+      cockroachdb:
+        image: sawadashota/cockroachdb:v2.1.6
+        env:
+          COCKROACH_INSECURE: true
+        ports:
+          - 26257:26257
     steps:
-      - run: exit 0
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: go mod download
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@v2
+        id: root-npm
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+          key: ${{ runner.os }}-${{ matrix.node }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-
+      - run: npm ci
+      - uses: actions/cache@v2
+        id: oauth2-client-npm
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+            test/e2e/oauth2-client/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-${{ hashFiles('test/e2e/oauth2-client/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.node }}-node-oauth2-client-
+      - run: npm ci
+        working-directory: test/e2e/oauth2-client
+      - run: |
+          echo "::set-env name=TEST_DATABASE_POSTGRESQL::postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable"
+          echo "::set-env name=TEST_DATABASE_MYSQL::mysql://root:test@(localhost:${{ job.services.mysql.ports[3306] }})/mysql?parseTime=true&multiStatements=true"
+          echo "::set-env name=TEST_DATABASE_COCKROACHDB::cockroach://root@localhost:${{ job.services.cockroachdb.ports[26257] }}/defaultdb?sslmode=disable"
+      - run: ./test/e2e/circle-ci.bash cockroach
+      - run: ./test/e2e/circle-ci.bash cockroach-jwt
 
   test-e2e-plugin:
     runs-on: ubuntu-20.04
