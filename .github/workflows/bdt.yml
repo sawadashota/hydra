@@ -13,8 +13,11 @@ jobs:
 
   nancy-test:
     runs-on: ubuntu-latest
+    container: sonatypecommunity/nancy:v0-alpine
     steps:
-      - run: exit 0
+      - uses: actions/checkout@v2
+      # exclude hashicorp/consul vulnerabilities because we don't use it (referenced by old viper)
+      - run: nancy -quiet -exclude-vulnerability fc041c7e-0c64-4b74-991e-64196a704ace,2bfd5f1a-e9b5-4a04-b4e8-15091e145845
 
   goreleaser-test:
     runs-on: ubuntu-latest
