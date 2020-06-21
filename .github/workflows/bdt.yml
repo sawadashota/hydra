@@ -22,7 +22,15 @@ jobs:
   goreleaser-test:
     runs-on: ubuntu-latest
     steps:
-      - run: exit 0
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.14
+      - name: Check for GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: v0.138.0
+          args: check
 
   test:
     runs-on: ubuntu-latest
